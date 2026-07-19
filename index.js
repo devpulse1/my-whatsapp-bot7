@@ -1,210 +1,406 @@
 const {
   default: makeWASocket,
   useMultiFileAuthState,
-  DisconnectReason
-} = require("@whiskeysockets/baileys");
+  DisconnectReason,
+  Browsers
+} = require('@whiskeysockets/baileys')
 
-const P = require("pino");
+const pino = require('pino')
 
-const ADMIN = "212621268935@s.whatsapp.net";
-const BOT_NAME = "𝐆𝐮𝐬𝐭𝐚𝐯𝐨";
+const PHONE_NUMBER = '212621268935'
 
-async function startBot() {
-  const { state, saveCreds } =
-    await useMultiFileAuthState("auth_info");
+const IMAGE_URL =
+  'https://i.ibb.co/279Hyr1f/7d787b74955692d2e6909b6c45d705ed.jpg'
 
-  const sock = makeWASocket({
-    auth: state,
-    printQRInTerminal: true,
-    logger: P({ level: "silent" })
-  });
+const OWNER_JID = `${PHONE_NUMBER}@s.whatsapp.net`
 
-  sock.ev.on("creds.update", saveCreds);
+let antiBadWords = false
+let antiLinks = false
+let antiMedia = false
 
-  sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
-    if (connection === "open") {
-      console.log(`${BOT_NAME} خدام بنجاح ✅`);
-    }
+const badWords = [
+  'زب',
+  'زبي',
+  'قحبة',
+  'قحب',
+  'كلوة',
+  'كحبة',
+  'نيك',
+  'منيك',
+  'شرموط',
+  'شرموطة',
+  'fuck',
+  'shit'
+]
 
-    if (connection === "close") {
-      const shouldReconnect =
-        lastDisconnect?.error?.output?.statusCode !==
-        DisconnectReason.loggedOut;
-
-      if (shouldReconnect) {
-        startBot();
-      }
-    }
-  });
-
-  sock.ev.on("messages.upsert", async ({ messages }) => {
-    const msg = messages[0];
-
-    if (!msg.message || msg.key.fromMe) return;
-
-    const from = msg.key.remoteJid;
-    const sender = msg.key.participant || from;
-
-    const text =
-      msg.message.conversation ||
-      msg.message.extendedTextMessage?.text ||
-      "";
-
-    const command = text.trim().toLowerCase();
-
-    const isAdmin = sender === ADMIN;
-
-    if (command === "اوامر") {
-      await sock.sendMessage(from, {
-        text:
-`╭━━━〔 ${BOT_NAME} 〕━━━╮
+const menuText = `
+╭━━━〔 𝐆𝐮𝐬𝐭𝐚𝐯𝐨 〕━━━╮
 
 📌 الأوامر:
 
-👋 ترحيب
-🚫 منع
 🧹 مح
+يحيد الأدمن من الآخرين ويطرد الأعضاء
+
 👢 طرد
-👢 طرد كولشي
-🛡️ ادمين
-🖼️ ستكرز
-🌐 دارك ويب
-📱 جهاز اتصال
+منشن عضو باش يطردو
+
+🚫 منع
+منع السبان والكلام المسيء
+
 🔗 روابط
+منع الروابط
+
+📤 إرسال
+منع الصور والفيديوهات والملفات والستكرز
+
+📱 جهاز اتصال
+رفض المكالمات
+
 ⚙️ اوامر
+إظهار صورة البوت والأوامر
 
-╰━━━━━━━━━━━━╯`
-      });
-    }
+╰━━━━━━━━━━━━━━━━━━╯
+`
 
-    if (command === "ترحيب") {
-      await sock.sendMessage(from, {
-        text: "مرحبا بيك فالمجموعة 👋🔥"
-      });
-    }
-
-    if (command === "طرد") {
-      if (!isAdmin) {
-        return sock.sendMessage(from, {
-          text: "❌ غير Gustavo هو اللي يقدر يستعمل هاد الأمر."
-        });
-      }
-
-      if (!msg.message.extendedTextMessage?.contextInfo?.mentionedJid) {
-        return sock.sendMessage(from, {
-          text: "⚠️ منشن الشخص اللي بغيتي تطرد."
-        });
-      }
-
-      const users =
-        msg.message.extendedTextMessage.contextInfo.mentionedJid;
-
-      await sock.groupParticipantsUpdate(from, users, "remove");
-
-      await sock.sendMessage(from, {
-        text: "👢 تم الطرد بنجاح."
-      });
-    }
-
-    if (command === "طرد كولشي") {
-      if (!isAdmin) {
-        return sock.sendMessage(from, {
-          text: "❌ هاد الأمر خاصو Gustavo."
-        });
-      }
-
-      const metadata = await sock.groupMetadata(from);
-
-      const users = metadata.participants
-        .map(p => p.id)
-        .filter(id => id !== ADMIN);
-
-      if (users.length > 0) {
-        await sock.groupParticipantsUpdate(
-          from,
-          users,
-          "remove"
-        );
-      }
-
-      await sock.sendMessage(from, {
-        text: "👢 تم طرد الأعضاء."
-      });
-    }
-
-    if (command === "ادمين") {
-      if (!isAdmin) {
-        return sock.sendMessage(from, {
-          text: "❌ غير Gustavo يقدر يعطي صلاحيات الأدمن."
-        });
-      }
-
-      const mentioned =
-        msg.message.extendedTextMessage?.contextInfo?.mentionedJid;
-
-      if (!mentioned || mentioned.length === 0) {
-        return sock.sendMessage(from, {
-          text: "⚠️ منشن الشخص اللي بغيتي تعطيه الأدمن."
-        });
-      }
-
-      await sock.groupParticipantsUpdate(
-        from,
-        mentioned,
-        "promote"
-      );
-
-      await sock.sendMessage(from, {
-        text: "🛡️ تم إعطاء صلاحيات الأدمن."
-      });
-    }
-
-    if (command === "منع") {
-      await sock.sendMessage(from, {
-        text: "🚫 تم تفعيل المنع."
-      });
-    }
-
-    if (command === "مح") {
-      await sock.sendMessage(from, {
-        text: "🧹 تم تنفيذ الأمر."
-      });
-    }
-
-    if (command === "ستكرز") {
-      await sock.sendMessage(from, {
-        text: "🖼️ ستكرز ممنوعة فهاد المجموعة 🚫"
-      });
-    }
-
-    if (command === "دارك ويب") {
-      await sock.sendMessage(from, {
-        text: "🌐 محتوى دارك ويب ممنوع 🚫"
-      });
-    }
-
-    if (command === "جهاز اتصال") {
-      await sock.sendMessage(from, {
-        text: "📱 جهاز الاتصال ممنوع 🚫"
-      });
-    }
-
-    if (command === "روابط") {
-      await sock.sendMessage(from, {
-        text: "🔗 الروابط ممنوعة 🚫"
-      });
-    }
-
-    if (
-      command.includes("بوت") &&
-      command.includes("غير")
-    ) {
-      await sock.sendMessage(from, {
-        text:
-"❌ سير تقود 😂 هادا بوت ديال 𝐆𝐮𝐬𝐭𝐚𝐯𝐨 بوحدو 🔥"
-      });
-    }
-  });
+function getText(msg) {
+  return (
+    msg.message?.conversation ||
+    msg.message?.extendedTextMessage?.text ||
+    msg.message?.imageMessage?.caption ||
+    msg.message?.videoMessage?.caption ||
+    ''
+  )
 }
 
-startBot();
+function hasBadWord(text) {
+  const lower = text.toLowerCase()
+  return badWords.some(word => lower.includes(word))
+}
+
+function hasLink(text) {
+  return /(https?:\/\/|www\.|t\.me\/|wa\.me\/|chat\.whatsapp\.com)/i.test(text)
+}
+
+function isMedia(msg) {
+  return Boolean(
+    msg.message?.imageMessage ||
+    msg.message?.videoMessage ||
+    msg.message?.documentMessage ||
+    msg.message?.stickerMessage ||
+    msg.message?.audioMessage
+  )
+}
+
+async function startBot() {
+  const { state, saveCreds } =
+    await useMultiFileAuthState('./auth_info')
+
+  const sock = makeWASocket({
+    auth: state,
+    logger: pino({ level: 'silent' }),
+    browser: Browsers.macOS('Google Chrome'),
+    printQRInTerminal: false
+  })
+
+  sock.ev.on('creds.update', saveCreds)
+
+  if (!state.creds.registered) {
+    setTimeout(async () => {
+      try {
+        const code =
+          await sock.requestPairingCode(PHONE_NUMBER)
+
+        console.log('')
+        console.log('==============================')
+        console.log('🔐 كود الربط ديال 𝐆𝐮𝐬𝐭𝐚𝐯𝐨:')
+        console.log(code)
+        console.log('==============================')
+        console.log('')
+      } catch (error) {
+        console.log('❌ خطأ فـ كود الربط:', error.message)
+      }
+    }, 3000)
+  }
+
+  sock.ev.on(
+    'connection.update',
+    ({ connection, lastDisconnect }) => {
+      if (connection === 'open') {
+        console.log('✅ 𝐆𝐮𝐬𝐭𝐚𝐯𝐨 خدام بنجاح')
+      }
+
+      if (connection === 'close') {
+        const shouldReconnect =
+          lastDisconnect?.error?.output?.statusCode !==
+          DisconnectReason.loggedOut
+
+        if (shouldReconnect) {
+          console.log('🔄 إعادة الاتصال...')
+          startBot()
+        } else {
+          console.log('🚪 الحساب تسجل الخروج')
+        }
+      }
+    }
+  )
+
+  sock.ev.on('call', async calls => {
+    for (const call of calls) {
+      try {
+        await sock.rejectCall(call.id, call.from)
+      } catch (error) {
+        console.log('❌ خطأ فرفض المكالمة')
+      }
+    }
+  })
+
+  sock.ev.on(
+    'messages.upsert',
+    async ({ messages }) => {
+      try {
+        const msg = messages[0]
+
+        if (!msg?.message) return
+        if (msg.key.fromMe) return
+
+        const from = msg.key.remoteJid
+        const sender =
+          msg.key.participant || from
+
+        const text = getText(msg)
+        const command =
+          text.trim().toLowerCase()
+
+        const isGroup =
+          from.endsWith('@g.us')
+
+        const isOwner =
+          sender === OWNER_JID
+
+        if (
+          isGroup &&
+          antiBadWords &&
+          !isOwner &&
+          hasBadWord(text)
+        ) {
+          await sock.sendMessage(from, {
+            delete: msg.key
+          })
+
+          await sock.sendMessage(from, {
+            text:
+              '🚫 السبان والكلام المسيء ممنوع.'
+          })
+
+          return
+        }
+
+        if (
+          isGroup &&
+          antiLinks &&
+          !isOwner &&
+          hasLink(text)
+        ) {
+          await sock.sendMessage(from, {
+            delete: msg.key
+          })
+
+          await sock.sendMessage(from, {
+            text:
+              '🔗 الروابط ممنوعة.'
+          })
+
+          return
+        }
+
+        if (
+          isGroup &&
+          antiMedia &&
+          !isOwner &&
+          isMedia(msg)
+        ) {
+          await sock.sendMessage(from, {
+            delete: msg.key
+          })
+
+          await sock.sendMessage(from, {
+            text:
+              '📤 إرسال الصور والفيديوهات والملفات والستكرز ممنوع.'
+          })
+
+          return
+        }
+
+        if (
+          command === 'اوامر' ||
+          command === 'أوامر'
+        ) {
+          await sock.sendMessage(from, {
+            image: {
+              url: IMAGE_URL
+            },
+            caption: menuText
+          })
+
+          return
+        }
+
+        if (command === 'منع') {
+          if (!isOwner) return
+
+          antiBadWords = true
+
+          await sock.sendMessage(from, {
+            text:
+              '🚫 تم تفعيل منع السبان والكلام المسيء.'
+          })
+
+          return
+        }
+
+        if (command === 'روابط') {
+          if (!isOwner) return
+
+          antiLinks = true
+
+          await sock.sendMessage(from, {
+            text:
+              '🔗 تم تفعيل منع الروابط.'
+          })
+
+          return
+        }
+
+        if (
+          command === 'إرسال' ||
+          command === 'ارسال'
+        ) {
+          if (!isOwner) return
+
+          antiMedia = true
+
+          await sock.sendMessage(from, {
+            text:
+              '📤 تم تفعيل منع الصور والفيديوهات والملفات والستكرز.'
+          })
+
+          return
+        }
+
+        if (command === 'طرد') {
+          if (!isGroup || !isOwner) return
+
+          const mentioned =
+            msg.message
+              ?.extendedTextMessage
+              ?.contextInfo
+              ?.mentionedJid
+
+          if (
+            !mentioned ||
+            mentioned.length === 0
+          ) {
+            await sock.sendMessage(from, {
+              text:
+                '⚠️ منشن العضو اللي بغيتي تطرد.'
+            })
+
+            return
+          }
+
+          await sock.groupParticipantsUpdate(
+            from,
+            mentioned,
+            'remove'
+          )
+
+          await sock.sendMessage(from, {
+            text:
+              '👢 تم طرد العضو.'
+          })
+
+          return
+        }
+
+        if (command === 'مح') {
+          if (!isGroup || !isOwner) return
+
+          const metadata =
+            await sock.groupMetadata(from)
+
+          const botJid =
+            sock.user.id.split(':')[0] +
+            '@s.whatsapp.net'
+
+          const otherAdmins =
+            metadata.participants
+              .filter(p =>
+                p.admin &&
+                p.id !== OWNER_JID &&
+                p.id !== botJid
+              )
+              .map(p => p.id)
+
+          if (otherAdmins.length > 0) {
+            await sock.groupParticipantsUpdate(
+              from,
+              otherAdmins,
+              'demote'
+            )
+          }
+
+          const usersToRemove =
+            metadata.participants
+              .map(p => p.id)
+              .filter(id =>
+                id !== OWNER_JID &&
+                id !== botJid
+              )
+
+          if (usersToRemove.length > 0) {
+            await sock.groupParticipantsUpdate(
+              from,
+              usersToRemove,
+              'remove'
+            )
+          }
+
+          await sock.sendMessage(from, {
+            text:
+`🧹 تم تنفيذ أمر مح.
+
+👑 بقيتي أنت بوحدك المالك
+🛡️ تحيدات صلاحيات الأدمن الآخرين
+🚫 تطردو الأعضاء الآخرين`
+          })
+
+          return
+        }
+
+        if (
+          command.includes('بوت') &&
+          (
+            command.includes('غير') ||
+            command.includes('اخر') ||
+            command.includes('آخر')
+          )
+        ) {
+          await sock.sendMessage(from, {
+            text:
+              '❌ سير تقود 😂 هادا ديال 𝐆𝐮𝐬𝐭𝐚𝐯𝐨 بوحدو 🔥'
+          })
+
+          return
+        }
+
+      } catch (error) {
+        console.log(
+          '❌ وقع خطأ:',
+          error.message
+        )
+      }
+    }
+  )
+}
+
+startBot()

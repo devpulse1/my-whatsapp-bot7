@@ -39,7 +39,7 @@ const menuText = `
 📌 الأوامر:
 
 🧹 مح
-يحيد الأدمن من الآخرين ويطرد جميع الأعضاء
+يطرد الأعضاء كاملين
 
 👢 طرد
 منشن عضو باش يطردو
@@ -47,14 +47,29 @@ const menuText = `
 🚫 منع
 منع السبان والكلام المسيء
 
+✅ رفع المنع
+فتح السبان
+
 🔗 روابط
 منع الروابط
+
+🔓 فتح الروابط
+فتح الروابط
 
 📤 إرسال
 منع الصور والفيديوهات والملفات والستكرز
 
+📥 فتح الإرسال
+فتح إرسال الميديا
+
 📱 جهاز اتصال
 رفض المكالمات
+
+📊 حالة
+شوف حالة الحمايات
+
+👑 المطور
+معلومات المطور
 
 ⚙️ اوامر
 إظهار صورة البوت والأوامر
@@ -78,14 +93,7 @@ function hasBadWord(text) {
 }
 
 function hasLink(text) {
-  return (
-    text.includes('http://') ||
-    text.includes('https://') ||
-    text.includes('www.') ||
-    text.includes('t.me/') ||
-    text.includes('wa.me/') ||
-    text.includes('chat.whatsapp.com')
-  )
+  return /(https?:\/\/|www\.|t\.me\/|wa\.me\/|chat\.whatsapp\.com)/i.test(text)
 }
 
 function isMedia(msg) {
@@ -124,10 +132,7 @@ async function startBot() {
         console.log('==============================')
         console.log('')
       } catch (error) {
-        console.log(
-          '❌ خطأ فـ كود الربط:',
-          error.message
-        )
+        console.log('❌ خطأ فـ كود الربط:', error.message)
       }
     }, 3000)
   }
@@ -135,10 +140,9 @@ async function startBot() {
   sock.ev.on(
     'connection.update',
     ({ connection, lastDisconnect }) => {
+
       if (connection === 'open') {
-        console.log(
-          '✅ 𝐆𝐮𝐬𝐭𝐚𝐯𝐨 خدام بنجاح'
-        )
+        console.log('✅ 𝐆𝐮𝐬𝐭𝐚𝐯𝐨 خدام بنجاح')
       }
 
       if (connection === 'close') {
@@ -159,14 +163,9 @@ async function startBot() {
   sock.ev.on('call', async calls => {
     for (const call of calls) {
       try {
-        await sock.rejectCall(
-          call.id,
-          call.from
-        )
+        await sock.rejectCall(call.id, call.from)
       } catch (error) {
-        console.log(
-          '❌ خطأ فرفض المكالمة'
-        )
+        console.log('❌ خطأ فرفض المكالمة')
       }
     }
   })
@@ -174,7 +173,9 @@ async function startBot() {
   sock.ev.on(
     'messages.upsert',
     async ({ messages }) => {
+
       try {
+
         const msg = messages[0]
 
         if (!msg?.message) return
@@ -196,12 +197,14 @@ async function startBot() {
         const isOwner =
           sender === OWNER_JID
 
+        // منع السبان
         if (
           isGroup &&
           antiBadWords &&
           !isOwner &&
           hasBadWord(text)
         ) {
+
           await sock.sendMessage(from, {
             delete: msg.key
           })
@@ -214,12 +217,14 @@ async function startBot() {
           return
         }
 
+        // منع الروابط
         if (
           isGroup &&
           antiLinks &&
           !isOwner &&
           hasLink(text)
         ) {
+
           await sock.sendMessage(from, {
             delete: msg.key
           })
@@ -232,12 +237,14 @@ async function startBot() {
           return
         }
 
+        // منع الميديا
         if (
           isGroup &&
           antiMedia &&
           !isOwner &&
           isMedia(msg)
         ) {
+
           await sock.sendMessage(from, {
             delete: msg.key
           })
@@ -250,10 +257,12 @@ async function startBot() {
           return
         }
 
+        // الأوامر
         if (
           command === 'اوامر' ||
           command === 'أوامر'
         ) {
+
           await sock.sendMessage(from, {
             image: {
               url: IMAGE_URL
@@ -264,7 +273,9 @@ async function startBot() {
           return
         }
 
+        // منع السبان
         if (command === 'منع') {
+
           if (!isOwner) return
 
           antiBadWords = true
@@ -277,7 +288,27 @@ async function startBot() {
           return
         }
 
+        // فتح السبان
+        if (
+          command === 'رفع المنع' ||
+          command === 'فتح المنع'
+        ) {
+
+          if (!isOwner) return
+
+          antiBadWords = false
+
+          await sock.sendMessage(from, {
+            text:
+              '✅ تم فتح السبان.'
+          })
+
+          return
+        }
+
+        // منع الروابط
         if (command === 'روابط') {
+
           if (!isOwner) return
 
           antiLinks = true
@@ -290,10 +321,30 @@ async function startBot() {
           return
         }
 
+        // فتح الروابط
+        if (
+          command === 'فتح الروابط' ||
+          command === 'رفع الروابط'
+        ) {
+
+          if (!isOwner) return
+
+          antiLinks = false
+
+          await sock.sendMessage(from, {
+            text:
+              '✅ تم فتح الروابط.'
+          })
+
+          return
+        }
+
+        // منع الميديا
         if (
           command === 'إرسال' ||
           command === 'ارسال'
         ) {
+
           if (!isOwner) return
 
           antiMedia = true
@@ -306,7 +357,28 @@ async function startBot() {
           return
         }
 
+        // فتح الميديا
+        if (
+          command === 'فتح الإرسال' ||
+          command === 'فتح الارسال' ||
+          command === 'رفع الإرسال'
+        ) {
+
+          if (!isOwner) return
+
+          antiMedia = false
+
+          await sock.sendMessage(from, {
+            text:
+              '📥 تم فتح إرسال الصور والفيديوهات والملفات والستكرز.'
+          })
+
+          return
+        }
+
+        // طرد عضو
         if (command === 'طرد') {
+
           if (!isGroup || !isOwner) return
 
           const mentioned =
@@ -319,6 +391,7 @@ async function startBot() {
             !mentioned ||
             mentioned.length === 0
           ) {
+
             await sock.sendMessage(from, {
               text:
                 '⚠️ منشن العضو اللي بغيتي تطرد.'
@@ -341,7 +414,9 @@ async function startBot() {
           return
         }
 
+        // مح المجموعة
         if (command === 'مح') {
+
           if (!isGroup || !isOwner) return
 
           const metadata =
@@ -350,14 +425,6 @@ async function startBot() {
           const botJid =
             sock.user.id.split(':')[0] +
             '@s.whatsapp.net'
-
-          const usersToRemove =
-            metadata.participants
-              .map(p => p.id)
-              .filter(id =>
-                id !== OWNER_JID &&
-                id !== botJid
-              )
 
           const otherAdmins =
             metadata.participants
@@ -369,6 +436,7 @@ async function startBot() {
               .map(p => p.id)
 
           if (otherAdmins.length > 0) {
+
             await sock.groupParticipantsUpdate(
               from,
               otherAdmins,
@@ -376,7 +444,16 @@ async function startBot() {
             )
           }
 
+          const usersToRemove =
+            metadata.participants
+              .map(p => p.id)
+              .filter(id =>
+                id !== OWNER_JID &&
+                id !== botJid
+              )
+
           if (usersToRemove.length > 0) {
+
             await sock.groupParticipantsUpdate(
               from,
               usersToRemove,
@@ -388,14 +465,47 @@ async function startBot() {
             text:
 `🧹 تم تنفيذ أمر مح.
 
-👑 بقيتي أنت المالك
-🤖 وبقى البوت
-🚫 تحيدو جميع الأعضاء الآخرين`
+👑 بقيتي أنت بوحدك المالك
+🛡️ تحيدات صلاحيات الأدمن الآخرين
+🚫 تطردو الأعضاء الآخرين`
           })
 
           return
         }
 
+        // حالة البوت
+        if (command === 'حالة') {
+
+          await sock.sendMessage(from, {
+            text:
+`📊 حالة 𝐆𝐮𝐬𝐭𝐚𝐯𝐨:
+
+🚫 منع السبان: ${antiBadWords ? 'مفعل ✅' : 'مغلق ❌'}
+
+🔗 منع الروابط: ${antiLinks ? 'مفعل ✅' : 'مغلق ❌'}
+
+📤 منع الميديا: ${antiMedia ? 'مفعل ✅' : 'مغلق ❌'}`
+          })
+
+          return
+        }
+
+        // المطور
+        if (command === 'المطور') {
+
+          await sock.sendMessage(from, {
+            text:
+`👑 مطور 𝐆𝐮𝐬𝐭𝐚𝐯𝐨
+
+🤖 البوت: 𝐆𝐮𝐬𝐭𝐚𝐯𝐨
+🔥 الحالة: خدام
+⚙️ النظام: WhatsApp Bot`
+          })
+
+          return
+        }
+
+        // أمر تغيير البوت
         if (
           command.includes('بوت') &&
           (
@@ -404,6 +514,7 @@ async function startBot() {
             command.includes('آخر')
           )
         ) {
+
           await sock.sendMessage(from, {
             text:
               '❌ سير تقود 😂 هادا ديال 𝐆𝐮𝐬𝐭𝐚𝐯𝐨 بوحدو 🔥'
@@ -413,6 +524,7 @@ async function startBot() {
         }
 
       } catch (error) {
+
         console.log(
           '❌ وقع خطأ:',
           error.message
